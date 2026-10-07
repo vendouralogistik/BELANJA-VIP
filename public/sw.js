@@ -2,10 +2,10 @@
  * Strategi: network-first untuk app shell (agar update selalu sampai ke user),
  * cache sebagai fallback offline. Versi cache WAJIB dinaikkan setiap ada
  * perubahan sw.js agar klien lama dipaksa refresh. */
-const CACHE = 'belanja-vip-v3';
+const CACHE = 'belanja-vip-v4';
 const SHELL = ['/', '/index.html', '/style.css', '/app.js', '/offline.js', '/manifest.json', '/icon-192.png', '/icon-512.png'];
-// File yang harus selalu fresh (logika aplikasi): network-first.
-const FRESH = ['/', '/index.html', '/app.js', '/offline.js'];
+// File yang harus selalu fresh (logika + tampilan aplikasi): network-first.
+const FRESH = ['/', '/index.html', '/app.js', '/offline.js', '/style.css'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(

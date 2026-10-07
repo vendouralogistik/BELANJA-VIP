@@ -37,9 +37,9 @@ body {
 /* ---- Topbar ala iOS (translucent blur) ---- */
 #topbar {
   position: sticky; top: 0; z-index: 20;
-  background: rgba(255, 255, 255, .82);
-  -webkit-backdrop-filter: blur(20px) saturate(1.6);
-  backdrop-filter: blur(20px) saturate(1.6);
+  background: rgba(255, 255, 255, .92);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
   border-bottom: .5px solid var(--garis);
   color: var(--teks);
   padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; gap: 8px;
@@ -58,9 +58,9 @@ body.tanpa-nav #view { padding-bottom: 32px; }
 #bottomnav {
   position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
   width: 100%; max-width: 480px; z-index: 20;
-  background: rgba(255, 255, 255, .82);
-  -webkit-backdrop-filter: blur(20px) saturate(1.6);
-  backdrop-filter: blur(20px) saturate(1.6);
+  background: rgba(255, 255, 255, .92);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
   border-top: .5px solid var(--garis);
   display: flex; padding-bottom: env(safe-area-inset-bottom);
 }
