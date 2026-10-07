@@ -31,9 +31,10 @@ async function upload(base64, mime, filename) {
   if (TEST_MODE) return 'test-file-' + crypto.randomUUID();
   const drive = driveClient();
   const folder = process.env.DRIVE_FOLDER_ID;
+  const { Readable } = require('stream');
   const res = await drive.files.create({
     resource: { name: filename || ('foto-' + Date.now() + '.jpg'), parents: [folder] },
-    media: { mimeType: mime || 'image/jpeg', body: Buffer.from(base64, 'base64') },
+    media: { mimeType: mime || 'image/jpeg', body: Readable.from(Buffer.from(base64, 'base64')) },
     fields: 'id',
   });
   return res.data.id;
