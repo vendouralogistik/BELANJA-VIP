@@ -218,6 +218,15 @@ async function render() {
 
 window.addEventListener('hashchange', render);
 
+/* Ganti hash TANPA menambah entri riwayat browser — dipakai untuk filter/pencarian
+   di dalam satu layar (chip status kasbon, pilih bulan rekap). Tanpa ini, tiap ganti
+   filter menumpuk riwayat dan tombol back HP hanya memuat ulang layar yang sama. */
+function gantiHash(hash) {
+  if (location.hash === hash) { render(); return; }
+  history.replaceState(null, '', hash);
+  render();
+}
+
 /* ================= 1. LOGIN ================= */
 async function layarLogin() {
   if (getToken()) { location.hash = '#/'; return; }
@@ -339,7 +348,7 @@ async function layarKasbonDaftar(params, query) {
     '<a class="btn btn-primer no-print" href="#/kasbon/baru">+ Buat Kasbon Baru</a>';
 
   $$('.chip-filter').forEach((c) => c.addEventListener('click', () => {
-    location.hash = '#/kasbon?status=' + c.dataset.status;
+    gantiHash('#/kasbon?status=' + c.dataset.status);
   }));
 }
 
@@ -1261,7 +1270,7 @@ async function layarRekap(params, query) {
     e.preventDefault();
     const bln = $('#r-bulan').value;
     if (!bln) { toast('Pilih bulan dulu.', 'gagal'); return; }
-    location.hash = '#/rekap?bulan=' + bln;
+    gantiHash('#/rekap?bulan=' + bln);
   });
   tampilkan(bulan);
 }
