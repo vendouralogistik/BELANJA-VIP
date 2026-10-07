@@ -5,7 +5,7 @@ const auth = require('../utils/auth');
 const drive = require('../utils/driveStore');
 const {
   asyncHandler, httpError, num, str, isValidDate,
-  kasbonRekap, serializeKasbon, serializeSetoran, belanjaFull, simpanFoto, validFoto,
+  kasbonRekap, serializeKasbon, serializeSetoran, belanjaFull, simpanFoto, validFoto, idKlien,
 } = require('../utils/helpers');
 
 const router = express.Router();
@@ -32,6 +32,13 @@ router.get('/', auth.requireAuth, asyncHandler(async (req, res) => {
 // POST /api/kasbon -> 201 kasbon (rekap nol)
 router.post('/', auth.requireAuth, asyncHandler(async (req, res) => {
   const { tanggal, jumlah, keperluan, pemberi, metode, catatan, bukti_transfer } = req.body || {};
+  // Idempoten: jika ID klien sudah pernah tersimpan (retry sinkronisasi offline),
+  // kembalikan data yang ada tanpa membuat duplikat.
+  const idem = idKlien(req.body && req.body.id);
+  if (idem) {
+    const ada = await db.findOne('kasbon', r => r.id === idem && r.user_id === req.user.id);
+    if (ada) return res.json({ kasbon: await serializeKasbon(ada, true) });
+  }
   if (!isValidDate(tanggal)) throw httpError(400, 'Tanggal tidak valid (format YYYY-MM-DD).');
   if (!(num(jumlah) > 0)) throw httpError(400, 'Jumlah harus lebih dari 0.');
   if (!METODE.includes(metode)) throw httpError(400, 'Metode harus "tunai" atau "transfer".');
@@ -43,6 +50,7 @@ router.post('/', auth.requireAuth, asyncHandler(async (req, res) => {
     buktiId = await simpanFoto(bukti_transfer, `bukti-transfer-${Date.now()}.jpg`);
   }
   const row = await db.insert('kasbon', {
+    id: idem,
     user_id: req.user.id,
     tanggal,
     jumlah: num(jumlah),
@@ -135,8 +143,18 @@ router.delete('/:id', auth.requireAuth, asyncHandler(async (req, res) => {
 // POST /api/kasbon/:id/tutup {setoran:{tanggal,jumlah,metode,catatan?,bukti_transfer?}}
 router.post('/:id/tutup', auth.requireAuth, asyncHandler(async (req, res) => {
   const k = await getKasbon(req.params.id, req.user.id);
-  if (k.status !== 'aktif') throw httpError(409, 'Kasbon tidak dalam status aktif.');
   const s = (req.body && req.body.setoran) || {};
+  // Idempoten untuk retry sinkronisasi offline — dicek SEBELUM status,
+  // karena percobaan pertama yang sukses sudah mengubah status jadi 'selesai'.
+  const idemS = idKlien(s.id);
+  if (idemS) {
+    const adaS = await db.findOne('setoran', r => r.id === idemS && r.kasbon_id === k.id);
+    if (adaS) {
+      const ks = await db.findOne('kasbon', r => r.id === k.id);
+      return res.json({ kasbon: await serializeKasbon(ks, true), setoran: serializeSetoran(adaS) });
+    }
+  }
+  if (k.status !== 'aktif') throw httpError(409, 'Kasbon tidak dalam status aktif.');
   if (!isValidDate(s.tanggal)) throw httpError(400, 'Tanggal setoran tidak valid (format YYYY-MM-DD).');
   if (!('jumlah' in s) || !(num(s.jumlah) >= 0)) throw httpError(400, 'Jumlah setoran wajib diisi (minimal 0).');
   if (!METODE.includes(s.metode)) throw httpError(400, 'Metode setoran harus "tunai" atau "transfer".');
@@ -146,6 +164,7 @@ router.post('/:id/tutup', auth.requireAuth, asyncHandler(async (req, res) => {
     buktiId = await simpanFoto(s.bukti_transfer, `bukti-setoran-${Date.now()}.jpg`);
   }
   const setoran = await db.insert('setoran', {
+    id: idemS,
     kasbon_id: k.id,
     tanggal: s.tanggal,
     jumlah: num(s.jumlah),

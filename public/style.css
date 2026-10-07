@@ -231,3 +231,21 @@ table.tabel tr.total td { font-weight: 700; border-top: 2px solid var(--teks); }
   .btn { display: none !important; }
   #lpj-doc { font-size: 12px; }
 }
+
+/* Mode offline */
+.banner-offline {
+  background: #451a03; color: #fdba74; font-size: 13px;
+  padding: 8px 16px; text-align: center;
+}
+.badge-antrean {
+  background: #fef3c7; color: #92400e; border: 1px solid #fcd34d;
+  border-radius: 999px; padding: 4px 10px; font-size: 12px; font-weight: 700;
+  text-decoration: none; white-space: nowrap;
+}
+.badge-antrean.badge-gagal { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+.label-offline {
+  background: #fff7ed; border: 1px solid #fed7aa; color: #9a3412;
+  border-radius: 8px; padding: 8px 12px; font-size: 12px; margin-bottom: 12px;
+}
+.badge-kuning { background: #fef3c7; color: #92400e; }
+.badge-merah { background: #fee2e2; color: #991b1b; }

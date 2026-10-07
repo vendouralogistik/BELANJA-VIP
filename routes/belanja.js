@@ -5,7 +5,7 @@ const auth = require('../utils/auth');
 const drive = require('../utils/driveStore');
 const {
   asyncHandler, httpError, num, str, isValidDate,
-  belanjaFull, simpanFoto, validFoto,
+  belanjaFull, simpanFoto, validFoto, idKlien,
 } = require('../utils/helpers');
 
 const router = express.Router();
@@ -106,6 +106,15 @@ router.get('/', auth.requireAuth, asyncHandler(async (req, res) => {
 // POST /api/belanja -> 201 belanja lengkap (satu POST: item + biaya + foto)
 router.post('/', auth.requireAuth, asyncHandler(async (req, res) => {
   const { kasbon_id, tanggal, toko, catatan, items, biaya_lain, fotos } = req.body || {};
+  // Idempoten untuk retry sinkronisasi offline — dicek dulu agar tidak duplikat.
+  const idem = idKlien(req.body && req.body.id);
+  if (idem) {
+    const adaB = await db.findOne('belanja', r => r.id === idem);
+    if (adaB) {
+      const kk = await db.findOne('kasbon', r => r.id === adaB.kasbon_id && r.user_id === req.user.id);
+      if (kk) return res.json(await belanjaFull(adaB));
+    }
+  }
   await kasbonAktif(kasbon_id, req.user.id);
   if (!isValidDate(tanggal)) throw httpError(400, 'Tanggal tidak valid (format YYYY-MM-DD).');
   if (!str(toko).trim()) throw httpError(400, 'Nama toko/supplier wajib diisi.');
@@ -118,6 +127,7 @@ router.post('/', auth.requireAuth, asyncHandler(async (req, res) => {
   // Upload foto DULU sebelum tulis baris apa pun (atomik: gagal upload = tidak ada belanja yatim).
   const fileIds = await uploadSemua(daftarFoto, 'nota');
   const row = await db.insert('belanja', {
+    id: idem,
     kasbon_id, tanggal,
     toko: str(toko).trim(),
     catatan: str(catatan).trim(),

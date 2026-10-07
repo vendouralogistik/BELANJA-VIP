@@ -16,7 +16,9 @@
   <header id="topbar">
     <span class="topbar-title">&#128176; Belanja VIP</span>
     <span class="topbar-user" id="topbarUser"></span>
+    <a href="#/antrean" id="badgeAntrean" class="badge-antrean" style="display:none"></a>
   </header>
+  <div id="bannerOffline" class="banner-offline" style="display:none"></div>
   <main id="view" aria-live="polite"></main>
   <nav id="bottomnav" aria-label="Navigasi utama">
     <a href="#/" data-nav="beranda"><span class="nav-ico">&#127968;</span><span>Beranda</span></a>
@@ -27,6 +29,7 @@
   </nav>
 </div>
 <div id="toast" role="status" aria-live="assertive"></div>
+<script src="/offline.js"></script>
 <script src="/app.js"></script>
 <script>
 if ('serviceWorker' in navigator) {

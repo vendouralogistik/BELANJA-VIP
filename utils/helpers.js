@@ -132,8 +132,15 @@ function validFoto(f) {
   return f && typeof f.data === 'string' && f.data.length > 0;
 }
 
+// ID dari klien (untuk sinkronisasi offline): hanya terima format UUID valid.
+// Membuat create idempoten — retry sinkronisasi tidak menggandakan data.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function idKlien(v) {
+  return (typeof v === 'string' && UUID_RE.test(v)) ? v : undefined;
+}
+
 module.exports = {
   num, str, httpError, asyncHandler, isValidDate, isValidBulan,
   hitungRekap, totalBelanja, belanjaFull, kasbonRekap,
-  serializeKasbon, serializeSetoran, simpanFoto, validFoto,
+  serializeKasbon, serializeSetoran, simpanFoto, validFoto, idKlien,
 };

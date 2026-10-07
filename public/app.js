@@ -46,20 +46,28 @@ const TOKEN_KEY = 'bv_token';
 const getToken = () => localStorage.getItem(TOKEN_KEY);
 const setToken = (t) => { if (t) localStorage.setItem(TOKEN_KEY, t); else localStorage.removeItem(TOKEN_KEY); };
 
-async function api(path, opts) {
+/* apiMentah: fetch langsung ke server. Error jaringan ditandai err.kodeOffline. */
+async function apiMentah(path, opts) {
   opts = opts || {};
   const headers = Object.assign({ 'Content-Type': 'application/json' }, opts.headers || {});
   const t = getToken();
   if (t) headers['Authorization'] = 'Bearer ' + t;
   let res;
+  const ctl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+  const timer = ctl ? setTimeout(() => ctl.abort(), 25000) : null;
   try {
     res = await fetch('/api' + path, {
       method: opts.method || 'GET',
       headers: headers,
-      body: opts.body
+      body: opts.body,
+      signal: ctl ? ctl.signal : undefined
     });
   } catch (e) {
-    throw new Error('Tidak bisa terhubung ke server. Periksa koneksi internet lalu coba lagi.');
+    const err = new Error('Tidak bisa terhubung ke server. Periksa koneksi internet lalu coba lagi.');
+    err.kodeOffline = true;
+    throw err;
+  } finally {
+    if (timer) clearTimeout(timer);
   }
   if (res.status === 401) {
     if (getToken()) {
@@ -81,6 +89,55 @@ async function api(path, opts) {
     throw new Error(msg);
   }
   return data;
+}
+window.apiMentah = apiMentah;
+
+/* api: wrapper dengan dukungan offline.
+ * - GET: saat offline, sajikan cache terakhir + antrean (diberi label _offline).
+ * - Tulis yang didukung: saat offline, masuk antrean dan kembalikan hasil optimis.
+ */
+async function api(path, opts) {
+  opts = opts || {};
+  const method = (opts.method || 'GET').toUpperCase();
+  const OF = window.Offline;
+
+  if (method === 'GET') {
+    try {
+      const data = await apiMentah(path, opts);
+      if (OF) OF.cacheSimpan(method + ' ' + path, data);
+      return data;
+    } catch (e) {
+      if (e && e.kodeOffline && OF) {
+        const gab = await OF.dataGabungan(method + ' ' + path);
+        if (gab) return gab;
+      }
+      throw e;
+    }
+  }
+
+  if (OF && OF.bisaDiantrekan(method, path)) {
+    let body = {};
+    try { body = opts.body ? JSON.parse(opts.body) : {}; } catch (e) { body = {}; }
+    // Siapkan ID klien agar relasi stabil saat sinkronisasi (server idempoten).
+    if (method === 'POST') {
+      if (/\/tutup$/.test(path)) {
+        body.setoran = body.setoran || {};
+        if (!body.setoran.id) body.setoran.id = (crypto.randomUUID ? crypto.randomUUID() : 'id-' + Date.now());
+      } else if (!body.id) {
+        body.id = (crypto.randomUUID ? crypto.randomUUID() : 'id-' + Date.now());
+      }
+      opts = Object.assign({}, opts, { body: JSON.stringify(body) });
+    }
+    try {
+      const data = await apiMentah(path, opts);
+      OF.sinkronkan(); // flush antrean lama bila ada
+      return data;
+    } catch (e) {
+      if (e && e.kodeOffline) return OF.antre(method, path, body, opts.offlineInfo);
+      throw e;
+    }
+  }
+  return apiMentah(path, opts);
 }
 
 /* ---------------- toast & loading ---------------- */
@@ -218,6 +275,7 @@ const RUTE = [
   { re: /^\/rekap$/, fn: layarRekap, nav: 'rekap' },
   { re: /^\/riwayat$/, fn: layarRiwayat, nav: 'lainnya' },
   { re: /^\/pengaturan$/, fn: layarPengaturan, nav: 'lainnya' },
+  { re: /^\/antrean$/, fn: layarAntrean, nav: 'lainnya' },
   { re: /^\/lainnya$/, fn: layarLainnya, nav: 'lainnya' },
   { re: /^\/s\/([^/]+)$/, fn: layarSharePublik, publik: true }
 ];
@@ -259,6 +317,7 @@ async function render() {
 }
 
 window.addEventListener('hashchange', render);
+window.render = render; // dipakai mesin sinkronisasi offline untuk render ulang
 
 /* Ganti hash TANPA menambah entri riwayat browser — dipakai untuk filter/pencarian
    di dalam satu layar (chip status kasbon, pilih bulan rekap). Tanpa ini, tiap ganti
@@ -347,6 +406,7 @@ async function layarDashboard() {
 
   viewEl().innerHTML =
     '<h1 class="judul-halaman">Dashboard</h1>' +
+    (window.Offline ? Offline.labelOfflineHTML(res) : '') +
     '<p class="subjudul">Ringkasan kasbon yang sedang berjalan</p>' +
     '<div class="card hero">' +
       '<div class="hero-label">Sisa uang kasbon</div>' +
@@ -571,6 +631,7 @@ async function layarKasbonDetail(params) {
 
   viewEl().innerHTML =
     '<h1 class="judul-halaman">' + esc(k.keperluan) + '</h1>' +
+    (window.Offline ? Offline.labelOfflineHTML(res) : '') +
     '<p class="subjudul">' + badgeKasbon(k.status) + ' ' + badgeRekap((rekap || {}).status || 'AMAN') + '</p>' +
     '<div class="card"><h3>Rekap</h3>' +
       '<div class="ringkasan">' +
@@ -1028,7 +1089,10 @@ async function layarBelanjaDetail(params) {
   if (btnHapus) btnHapus.addEventListener('click', async () => {
     if (!confirm('Hapus belanja di ' + b.toko + ' (' + rupiah(b.total) + ')?')) return;
     try {
-      await api('/belanja/' + encodeURIComponent(id), { method: 'DELETE' });
+      await api('/belanja/' + encodeURIComponent(id), {
+        method: 'DELETE',
+        offlineInfo: { kasbon_id: b.kasbon_id, totalLama: b.total, desc: 'Hapus belanja di ' + b.toko + ' (' + rupiah(b.total) + ')' }
+      });
       toast('Belanja dihapus.', 'sukses');
       location.hash = '#/kasbon/' + b.kasbon_id;
     } catch (err) { toast(err.message, 'gagal'); }
@@ -1105,6 +1169,7 @@ async function layarBelanjaEdit(params) {
     try {
       await api('/belanja/' + encodeURIComponent(id), {
         method: 'PUT',
+        offlineInfo: { kasbon_id: b.kasbon_id, totalLama: b.total, desc: 'Ubah belanja di ' + b.toko },
         body: JSON.stringify({
           tanggal: $('#b-tanggal').value,
           toko: $('#b-toko').value.trim(),
@@ -1286,6 +1351,7 @@ async function layarRekap(params, query) {
       }).join('');
       box.innerHTML =
         '<div class="card"><h3>Rekap ' + esc(bln) + '</h3>' +
+          (window.Offline ? Offline.labelOfflineHTML(r) : '') +
           '<div class="ringkasan">' +
             '<div class="kotak"><div class="l">Total belanja</div><div class="v">' + rupiah(r.total_belanja) + '</div></div>' +
             '<div class="kotak"><div class="l">Transaksi</div><div class="v">' + esc(r.jumlah_transaksi) + '</div></div>' +
@@ -1418,6 +1484,57 @@ async function layarLainnya() {
   $('#btnLogout').addEventListener('click', logout);
 }
 
+/* ================= ANTREAN OFFLINE ================= */
+async function layarAntrean() {
+  layarLoading('Memuat antrean...');
+  const OF = window.Offline;
+  const ops = OF ? await OF.daftar() : [];
+  const fmtW = (ts) => {
+    try { return new Date(ts).toLocaleString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }); }
+    catch (e) { return ''; }
+  };
+  let isi;
+  if (!ops.length) {
+    isi = '<div class="kosong"><span class="emoji">&#9989;</span><p>Tidak ada data antre.<br>Semua perubahan sudah terkirim ke server.</p></div>';
+  } else {
+    isi = ops.map((o) =>
+      '<div class="card"><div class="row"><strong>' + esc(o.info.desc || (o.method + ' ' + o.path)) + '</strong>' +
+      (o.status === 'gagal'
+        ? '<span class="badge badge-merah">GAGAL</span>'
+        : '<span class="badge badge-kuning">MENUNGGU</span>') + '</div>' +
+      '<div class="label">' + fmtW(o.ts) + '</div>' +
+      (o.status === 'gagal' && o.error ? '<div class="label" style="color:var(--merah)">' + esc(o.error) + '</div>' : '') +
+      '<div class="row mt"><button class="btn btn-sekunder btn-kecil" data-hapus-antre="' + esc(o.cid) + '">Hapus</button></div>' +
+      '</div>'
+    ).join('');
+  }
+  viewEl().innerHTML =
+    '<h1 class="judul-halaman">Antrean Offline</h1>' +
+    '<p class="subjudul">Data yang dibuat saat tanpa internet, menunggu terkirim</p>' +
+    '<div class="kotak-info">Saat HP mendapat internet, antrean terkirim otomatis berurutan. ' +
+    'Data berstatus GAGAL perlu tindakan manual (biasanya karena datanya sudah tidak valid di server).</div>' +
+    '<div class="row mb"><button class="btn btn-primer btn-kecil" id="btnKirimAntrean">Kirim Sekarang</button>' +
+    (ops.some((o) => o.status === 'gagal') ? '<button class="btn btn-sekunder btn-kecil" id="btnHapusGagal">Hapus yang Gagal</button>' : '') + '</div>' +
+    isi;
+  $('#btnKirimAntrean').addEventListener('click', async () => {
+    const btn = $('#btnKirimAntrean');
+    btn.disabled = true; btn.textContent = 'Mengirim...';
+    try {
+      const h = await OF.sinkronkan(true);
+      if (h.alasan === 'offline') toast('Masih offline — coba lagi saat ada internet.', 'gagal');
+    } catch (e) { toast(e.message, 'gagal'); }
+    render();
+  });
+  const bg = $('#btnHapusGagal');
+  if (bg) bg.addEventListener('click', async () => { await OF.hapusGagal(); render(); });
+  document.querySelectorAll('[data-hapus-antre]').forEach((b) =>
+    b.addEventListener('click', async () => {
+      if (!confirm('Hapus data antre ini? Data tidak akan terkirim ke server.')) return;
+      await OF.hapus(b.dataset.hapusAntre);
+      render();
+    }));
+}
+
 /* ================= LPJ PUBLIK (tanpa login) ================= */
 async function layarSharePublik(params) {
   const token = params[0];
@@ -1488,4 +1605,13 @@ async function layarSharePublik(params) {
 }
 
 /* ---------------- init ---------------- */
-document.addEventListener('DOMContentLoaded', render);
+document.addEventListener('DOMContentLoaded', () => {
+  render();
+  // Mode offline: tampilkan status antrean & coba sinkronisasi.
+  if (window.Offline) {
+    Offline.perbaruiBanner();
+    Offline.perbaruiBadge();
+    // Tunda sejenak agar render pertama selesai dulu.
+    setTimeout(() => Offline.sinkronkan().catch(() => {}), 3000);
+  }
+});
