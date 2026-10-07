@@ -1,15 +1,15 @@
 'use strict';
 /**
- * 9. Drive fake (TEST_MODE) — cakupan wajib:
+ * 9. Storage foto fake (TEST_MODE) — cakupan wajib:
  *  - upload foto mengembalikan file id
- *  - URL terbentuk benar: https://drive.google.com/thumbnail?id=<FILE_ID>&sz=w1000
+ *  - URL terbentuk benar: https://storage.googleapis.com/<BUCKET>/<FILE_ID>
  *  - berlaku untuk foto nota (belanja) maupun bukti transfer (kasbon/setoran)
  */
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 const { login, buatKasbon, tutupKasbon, foto, driveUrl } = require('./_helper');
 
-describe('Drive fake (TEST_MODE)', () => {
+describe('Storage foto fake (TEST_MODE)', () => {
   it('upload foto nota -> drive_file_id terisi + url terbentuk benar', async () => {
     const client = await login();
     const kasbon = await buatKasbon(client);
@@ -27,7 +27,7 @@ describe('Drive fake (TEST_MODE)', () => {
     assert.ok(typeof f.drive_file_id === 'string' && f.drive_file_id.length > 0,
       'drive_file_id harus string tak-kosong');
     assert.equal(f.url, driveUrl(f.drive_file_id),
-      'url harus https://drive.google.com/thumbnail?id=<FILE_ID>&sz=w1000');
+      'url harus https://storage.googleapis.com/<BUCKET>/<FILE_ID>');
   });
 
   it('beberapa foto -> tiap foto dapat file id UNIK', async () => {

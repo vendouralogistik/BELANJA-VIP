@@ -22,6 +22,8 @@
  */
 
 process.env.TEST_MODE = '1';
+// Bucket dummy agar URL foto terbentuk deterministik saat TEST_MODE=1.
+process.env.FIREBASE_STORAGE_BUCKET = process.env.FIREBASE_STORAGE_BUCKET || 'test-bucket';
 
 const assert = require('node:assert/strict');
 const path = require('node:path');
@@ -42,9 +44,10 @@ function foto(mime = 'image/jpeg') {
   return { data: FOTO_JPEG_1PX_BASE64, mime };
 }
 
-/** Bentuk URL tampil foto sesuai CONTRACT.md */
+/** Bentuk URL tampil foto sesuai CONTRACT.md (Firebase Storage) */
 function driveUrl(fileId) {
-  return `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`;
+  const bucket = process.env.FIREBASE_STORAGE_BUCKET || 'test-bucket';
+  return `https://storage.googleapis.com/${bucket}/${fileId}`;
 }
 
 function freshRequest() {

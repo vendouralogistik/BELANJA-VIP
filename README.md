@@ -53,7 +53,7 @@ Tanpa database berbayar.
 |---|---|---|
 | `GOOGLE_SERVICE_ACCOUNT_JSON` | Ya (production) | Isi file JSON key service account (inline, satu baris) |
 | `SPREADSHEET_ID` | Ya (production) | `<ISI_ID_SPREADSHEET>` |
-| `DRIVE_FOLDER_ID` | Ya (production) | `<ISI_ID_FOLDER_DRIVE>` |
+| `FIREBASE_STORAGE_BUCKET` | Ya (production) | `<ISI_NAMA_BUCKET_FIREBASE>` |
 | `JWT_SECRET` | Ya (production) | String acak panjang, mis. `<ISI_SECRET_ACAK_MIN_32_KARAKTER>` |
 | `ADMIN_PASSWORD` | Tidak | Password awal akun `admin`. **Default: `belanjavip123` — WAJIB diganti!** |
 | `ADMIN_USERNAME` | Tidak | Username akun seed. Default: `admin` |
@@ -74,7 +74,7 @@ npm test
 # 2) Mode production lokal (butuh env Google):
 export GOOGLE_SERVICE_ACCOUNT_JSON='<ISI_JSON_KEY>'
 export SPREADSHEET_ID='<ISI_ID_SPREADSHEET>'
-export DRIVE_FOLDER_ID='<ISI_ID_FOLDER_DRIVE>'
+export FIREBASE_STORAGE_BUCKET='<ISI_NAMA_BUCKET_FIREBASE>'
 export JWT_SECRET='<ISI_SECRET_ACAK_MIN_32_KARAKTER>'
 export ADMIN_PASSWORD='<GANTI_DENGAN_PASSWORD_KUAT>'
 npm start
@@ -94,7 +94,7 @@ Lalu di dashboard Vercel (Settings → Environment Variables, Production) isi:
 
 - `GOOGLE_SERVICE_ACCOUNT_JSON`
 - `SPREADSHEET_ID`
-- `DRIVE_FOLDER_ID`
+- `FIREBASE_STORAGE_BUCKET`
 - `JWT_SECRET`
 - `ADMIN_PASSWORD` ← **ganti dari default!**
 
