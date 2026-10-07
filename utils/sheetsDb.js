@@ -95,12 +95,47 @@ function spreadsheetId() {
   return sid;
 }
 
+// Cache baca per tab (TTL singkat) — menekan pola N+1 ke Sheets API.
+// Kuota gratis Sheets: 60 read/menit. Tanpa cache, 1x buka dashboard = 4x(jumlah kasbon) reads.
+const CACHE_TTL_MS = 15000;
+const _tabCache = new Map(); // tab -> { at, data }
+function bustCache(tab) { _tabCache.delete(tab); }
+
+function isQuotaError(e) {
+  const code = e && (e.code || (e.response && e.response.status));
+  const msg = String((e && e.message) || '');
+  return code === 429 || /quota|rate.?limit/i.test(msg);
+}
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
 // Ambil semua baris satu tab beserta nomor barisnya (untuk update/hapus).
 async function readTab(tab) {
+  const now = Date.now();
+  const hit = _tabCache.get(tab);
+  if (hit && (now - hit.at) < CACHE_TTL_MS) return hit.data;
   const sheets = sheetsClient();
-  const res = await sheets.spreadsheets.values.get({ spreadsheetId: spreadsheetId(), range: tab });
+  const ambil = () => sheets.spreadsheets.values.get({ spreadsheetId: spreadsheetId(), range: tab });
+  let res;
+  try {
+    res = await ambil();
+  } catch (e) {
+    if (!isQuotaError(e)) throw e;
+    await sleep(2000); // retry 1x khusus kuota
+    try { res = await ambil(); }
+    catch (e2) {
+      if (isQuotaError(e2)) {
+        const err = new Error('Google Sheets sedang sibuk (batas pemakaian sementara tercapai). Tunggu beberapa detik lalu coba lagi.');
+        err.status = 429; throw err;
+      }
+      throw e2;
+    }
+  }
   const values = res.data.values || [];
-  if (values.length === 0) return { header: TAB_HEADERS[tab], rows: [] };
+  if (values.length === 0) {
+    const kosong = { header: TAB_HEADERS[tab], rows: [] };
+    _tabCache.set(tab, { at: now, data: kosong });
+    return kosong;
+  }
   const header = values[0];
   const rows = [];
   for (let i = 1; i < values.length; i++) {
@@ -113,7 +148,9 @@ async function readTab(tab) {
     if (!obj.id) continue; // lewati baris kosong
     rows.push({ rowNum: i + 1, obj });
   }
-  return { header: TAB_HEADERS[tab], rows };
+  const hasil = { header: TAB_HEADERS[tab], rows };
+  _tabCache.set(tab, { at: now, data: hasil });
+  return hasil;
 }
 
 const sheetsDb = {
@@ -132,6 +169,7 @@ const sheetsDb = {
       valueInputOption: 'RAW',
       resource: { values: [arr] },
     });
+    bustCache(tab);
     return rec;
   },
   async update(tab, id, patch) {
@@ -148,6 +186,7 @@ const sheetsDb = {
       valueInputOption: 'RAW',
       resource: { values: [arr] },
     });
+    bustCache(tab);
     return merged;
   },
   async remove(tab, id) {
@@ -173,6 +212,7 @@ const sheetsDb = {
         }],
       },
     });
+    bustCache(tab);
     return true;
   },
 };

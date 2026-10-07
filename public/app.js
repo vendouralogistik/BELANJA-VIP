@@ -145,6 +145,39 @@ async function fileListKeFoto(fileList) {
   return hasil;
 }
 
+/* ---------------- pilih foto: kamera / galeri ---------------- */
+/* Dua tombol jelas sebagai pengganti satu input bercapture (yang memaksa kamera).
+   prefix: awalan id unik; multiple: boleh banyak file. */
+function tombolFotoHTML(prefix, multiple) {
+  const m = multiple ? ' multiple' : '';
+  return '<div class="pilih-foto">' +
+    '<button type="button" class="btn btn-sekunder btn-kecil" data-foto-btn="' + prefix + '-kamera">📷 Kamera</button>' +
+    '<button type="button" class="btn btn-sekunder btn-kecil" data-foto-btn="' + prefix + '-galeri">🖼️ Galeri</button>' +
+    '<input type="file" id="' + prefix + '-kamera" accept="image/*"' + m + ' capture="environment" hidden>' +
+    '<input type="file" id="' + prefix + '-galeri" accept="image/*"' + m + ' hidden>' +
+  '</div>';
+}
+
+/* Pasang handler untuk kedua input foto. onFiles(files) dipanggil tiap user memilih. */
+function pasangTombolFoto(prefix, onFiles) {
+  const hubungkan = (id) => {
+    const inp = document.getElementById(id);
+    if (!inp) return;
+    inp.addEventListener('change', async () => {
+      if (inp.files.length) { try { await onFiles(inp.files); } catch (e) { toast(e.message, 'gagal'); } }
+      inp.value = '';
+    });
+  };
+  hubungkan(prefix + '-kamera');
+  hubungkan(prefix + '-galeri');
+  document.querySelectorAll('[data-foto-btn^="' + prefix + '-"]').forEach((b) => {
+    b.addEventListener('click', () => {
+      const inp = document.getElementById(b.getAttribute('data-foto-btn'));
+      if (inp) inp.click();
+    });
+  });
+}
+
 /* ---------------- auth ---------------- */
 async function logout() {
   try { await api('/logout', { method: 'POST' }); } catch (e) { /* token dibuang walau gagal */ }
@@ -292,17 +325,20 @@ async function layarDashboard() {
   const tSisa = tDiterima - tTerpakai;
   const persen = tDiterima > 0 ? (tTerpakai / tDiterima) * 100 : 0;
   const statusG = tSisa < 0 ? 'NOMBOK' : (persen >= 90 ? 'HAMPIR HABIS' : 'AMAN');
+  const persenBar = Math.min(100, Math.round(persen));
+  const warnaBar = tSisa < 0 ? 'var(--merah)' : (persen >= 90 ? 'var(--kuning)' : 'var(--hijau)');
 
   let kartu = daftar.map((k) => {
     const r = k.rekap || {};
+    const pk = r.diterima > 0 ? Math.min(100, Math.round(((r.terpakai || 0) / r.diterima) * 100)) : 0;
+    const wk = (r.sisa || 0) < 0 ? 'var(--merah)' : (pk >= 90 ? 'var(--kuning)' : 'var(--hijau)');
     return '<div class="card klik" onclick="location.hash=\'#/kasbon/' + esc(k.id) + '\'">' +
       '<div class="row"><strong>' + esc(k.keperluan) + '</strong>' + badgeRekap(r.status || 'AMAN') + '</div>' +
       '<div class="row"><span class="label">' + fmtTgl(k.tanggal) + ' &middot; ' + esc(k.pemberi || '') + '</span></div>' +
-      '<div class="ringkasan">' +
-        '<div class="kotak"><div class="l">Diterima</div><div class="v">' + rupiah(r.diterima) + '</div></div>' +
-        '<div class="kotak"><div class="l">Terpakai</div><div class="v">' + rupiah(r.terpakai) + '</div></div>' +
-        '<div class="kotak"><div class="l">Sisa</div><div class="v ' + ((r.sisa || 0) < 0 ? 'v-merah' : 'v-hijau') + '">' + rupiah(r.sisa) + '</div></div>' +
-      '</div></div>';
+      '<div class="row mt"><span class="label">Sisa</span><strong class="' + ((r.sisa || 0) < 0 ? 'v-merah' : 'v-hijau') + '">' + rupiah(r.sisa) + '</strong></div>' +
+      '<div class="bar-luar"><span class="bar-dalam" style="display:block;width:' + pk + '%;background:' + wk + '"></span></div>' +
+      '<div class="label">Terpakai ' + rupiah(r.terpakai) + ' dari ' + rupiah(r.diterima) + '</div>' +
+    '</div>';
   }).join('');
 
   if (!daftar.length) {
@@ -312,13 +348,11 @@ async function layarDashboard() {
   viewEl().innerHTML =
     '<h1 class="judul-halaman">Dashboard</h1>' +
     '<p class="subjudul">Ringkasan kasbon yang sedang berjalan</p>' +
-    '<div class="card">' +
-      '<div class="row"><h3>Ringkasan Kasbon Aktif</h3>' + badgeRekap(statusG) + '</div>' +
-      '<div class="ringkasan">' +
-        '<div class="kotak"><div class="l">Diterima</div><div class="v">' + rupiah(tDiterima) + '</div></div>' +
-        '<div class="kotak"><div class="l">Terpakai</div><div class="v">' + rupiah(tTerpakai) + '</div></div>' +
-        '<div class="kotak"><div class="l">Sisa</div><div class="v ' + (tSisa < 0 ? 'v-merah' : 'v-hijau') + '">' + rupiah(tSisa) + '</div></div>' +
-      '</div>' +
+    '<div class="card hero">' +
+      '<div class="hero-label">Sisa uang kasbon</div>' +
+      '<div class="hero-angka ' + (tSisa < 0 ? 'v-merah' : 'v-hijau') + '">' + rupiah(tSisa) + '</div>' +
+      '<div class="bar-luar bar-besar"><span class="bar-dalam" style="display:block;width:' + persenBar + '%;background:' + warnaBar + '"></span></div>' +
+      '<div class="row"><span class="label">Terpakai ' + rupiah(tTerpakai) + ' dari ' + rupiah(tDiterima) + '</span>' + badgeRekap(statusG) + '</div>' +
       '<div class="label tengah">' + daftar.length + ' kasbon aktif</div>' +
     '</div>' +
     '<div class="row mb"><h3 style="margin:0">Kasbon Aktif</h3>' +
@@ -377,9 +411,9 @@ function formKasbonHTML(k) {
       '<label class="radio-pil"><input type="radio" name="k-metode" value="transfer"' + (metode === 'transfer' ? ' checked' : '') + '><span>&#128179; Transfer</span></label>' +
     '</div></div>' +
     '<div class="field" id="wrap-bukti" style="display:' + (metode === 'transfer' ? 'block' : 'none') + '">' +
-      '<label for="k-bukti">Foto bukti transfer <span style="color:#dc2626">*</span></label>' +
-      '<input type="file" id="k-bukti" accept="image/*">' +
-      '<div class="bantuan">Wajib diisi jika metode Transfer. Foto dikompres otomatis sebelum dikirim.</div>' +
+      '<label>Foto bukti transfer <span style="color:#dc2626">*</span></label>' +
+      tombolFotoHTML('k-bukti', false) +
+      '<div class="bantuan">Wajib diisi jika metode Transfer. Ketuk 📷 untuk kamera, 🖼️ untuk galeri.</div>' +
       '<div class="foto-grid" id="prev-bukti"></div>' +
     '</div>' +
     '<div class="field"><label for="k-catatan">Catatan (opsional)</label>' +
@@ -391,16 +425,13 @@ function pasangToggleBukti() {
     const transfer = $('input[name="k-metode"]:checked').value === 'transfer';
     $('#wrap-bukti').style.display = transfer ? 'block' : 'none';
   }));
-  const inp = $('#k-bukti');
-  if (inp) inp.addEventListener('change', async () => {
+  pasangTombolFoto('k-bukti', async (files) => {
     const prev = $('#prev-bukti');
     prev.innerHTML = '';
-    if (!inp.files.length) return;
-    try {
-      const f = await kompresFoto(inp.files[0]);
-      prev.innerHTML = '<div class="foto-thumb"><img src="data:' + f.mime + ';base64,' + f.data + '"></div>';
-      inp.dataset.foto = JSON.stringify(f);
-    } catch (e) { toast(e.message, 'gagal'); inp.value = ''; }
+    delete prev.dataset.foto;
+    const f = await kompresFoto(files[0]);
+    prev.innerHTML = '<div class="foto-thumb"><img src="data:' + f.mime + ';base64,' + f.data + '"></div>';
+    prev.dataset.foto = JSON.stringify(f);
   });
 }
 
@@ -419,8 +450,8 @@ async function layarKasbonForm() {
     if (!(jumlah > 0)) { toast('Jumlah harus lebih dari 0.', 'gagal'); return; }
     let bukti = null;
     if (metode === 'transfer') {
-      if (!$('#k-bukti').dataset.foto) { toast('Metode Transfer wajib melampirkan foto bukti transfer.', 'gagal'); return; }
-      bukti = JSON.parse($('#k-bukti').dataset.foto);
+      if (!$('#prev-bukti').dataset.foto) { toast('Metode Transfer wajib melampirkan foto bukti transfer.', 'gagal'); return; }
+      bukti = JSON.parse($('#prev-bukti').dataset.foto);
     }
     const btn = $('#formKasbon button[type="submit"]');
     btn.disabled = true; btn.textContent = 'Menyimpan...';
@@ -601,8 +632,9 @@ async function layarTutupKasbon(params) {
         '<label class="radio-pil"><input type="radio" name="s-metode" value="transfer"><span>&#128179; Transfer</span></label>' +
       '</div></div>' +
       '<div class="field" id="wrap-sbukti" style="display:none">' +
-        '<label for="s-bukti">Foto bukti transfer <span style="color:#dc2626">*</span></label>' +
-        '<input type="file" id="s-bukti" accept="image/*"><div class="foto-grid" id="prev-sbukti"></div></div>' +
+        '<label>Foto bukti transfer <span style="color:#dc2626">*</span></label>' +
+        tombolFotoHTML('s-bukti', false) +
+        '<div class="bantuan">Ketuk 📷 untuk kamera, 🖼️ untuk galeri.</div><div class="foto-grid" id="prev-sbukti"></div></div>' +
       '<div class="field"><label for="s-catatan">Catatan (opsional)</label><textarea id="s-catatan"></textarea></div>' +
       '<button class="btn btn-kuning" type="submit">Tutup Kasbon &amp; Simpan Setoran</button>' +
     '</form></div>';
@@ -610,13 +642,10 @@ async function layarTutupKasbon(params) {
   $$('input[name="s-metode"]').forEach((x) => x.addEventListener('change', () => {
     $('#wrap-sbukti').style.display = $('input[name="s-metode"]:checked').value === 'transfer' ? 'block' : 'none';
   }));
-  $('#s-bukti').addEventListener('change', async () => {
-    if (!$('#s-bukti').files.length) return;
-    try {
-      const f = await kompresFoto($('#s-bukti').files[0]);
-      $('#prev-sbukti').innerHTML = '<div class="foto-thumb"><img src="data:' + f.mime + ';base64,' + f.data + '"></div>';
-      $('#s-bukti').dataset.foto = JSON.stringify(f);
-    } catch (e) { toast(e.message, 'gagal'); $('#s-bukti').value = ''; }
+  pasangTombolFoto('s-bukti', async (files) => {
+    const f = await kompresFoto(files[0]);
+    $('#prev-sbukti').innerHTML = '<div class="foto-thumb"><img src="data:' + f.mime + ';base64,' + f.data + '"></div>';
+    $('#prev-sbukti').dataset.foto = JSON.stringify(f);
   });
 
   $('#formTutup').addEventListener('submit', async (e) => {
@@ -626,8 +655,8 @@ async function layarTutupKasbon(params) {
     if (!(jumlah >= 0)) { toast('Jumlah setoran tidak boleh negatif.', 'gagal'); return; }
     let bukti = null;
     if (metode === 'transfer') {
-      if (!$('#s-bukti').dataset.foto) { toast('Metode Transfer wajib melampirkan foto bukti transfer.', 'gagal'); return; }
-      bukti = JSON.parse($('#s-bukti').dataset.foto);
+      if (!$('#prev-sbukti').dataset.foto) { toast('Metode Transfer wajib melampirkan foto bukti transfer.', 'gagal'); return; }
+      bukti = JSON.parse($('#prev-sbukti').dataset.foto);
     }
     if (!confirm('Tutup kasbon dengan setoran ' + rupiah(jumlah) + '? Setelah ditutup, belanja tidak bisa diubah lagi.')) return;
     const btn = $('#formTutup button[type="submit"]');
@@ -666,8 +695,9 @@ function formEditSetoran(kasbonId, setoran) {
         '<label class="radio-pil"><input type="radio" name="es-metode" value="transfer"' + (setoran.metode === 'transfer' ? ' checked' : '') + '><span>&#128179; Transfer</span></label>' +
       '</div></div>' +
       '<div class="field" id="wrap-esbukti" style="display:' + (setoran.metode === 'transfer' ? 'block' : 'none') + '">' +
-        '<label for="es-bukti">Foto bukti transfer (baru, opsional)</label>' +
-        '<input type="file" id="es-bukti" accept="image/*"><div class="foto-grid" id="prev-esbukti"></div></div>' +
+        '<label>Foto bukti transfer (baru, opsional)</label>' +
+        tombolFotoHTML('es-bukti', false) +
+        '<div class="bantuan">Ketuk 📷 untuk kamera, 🖼️ untuk galeri.</div><div class="foto-grid" id="prev-esbukti"></div></div>' +
       '<div class="field"><label for="es-catatan">Catatan (opsional)</label><textarea id="es-catatan">' + esc(setoran.catatan || '') + '</textarea></div>' +
       '<button class="btn btn-primer" type="submit">Simpan Perubahan</button>' +
       '<button class="btn btn-sekunder" type="button" id="btnBatalSetoran">Batal</button>' +
@@ -676,13 +706,10 @@ function formEditSetoran(kasbonId, setoran) {
   $$('input[name="es-metode"]').forEach((x) => x.addEventListener('change', () => {
     $('#wrap-esbukti').style.display = $('input[name="es-metode"]:checked').value === 'transfer' ? 'block' : 'none';
   }));
-  $('#es-bukti').addEventListener('change', async () => {
-    if (!$('#es-bukti').files.length) return;
-    try {
-      const f = await kompresFoto($('#es-bukti').files[0]);
-      $('#prev-esbukti').innerHTML = '<div class="foto-thumb"><img src="data:' + f.mime + ';base64,' + f.data + '"></div>';
-      $('#es-bukti').dataset.foto = JSON.stringify(f);
-    } catch (e) { toast(e.message, 'gagal'); $('#es-bukti').value = ''; }
+  pasangTombolFoto('es-bukti', async (files) => {
+    const f = await kompresFoto(files[0]);
+    $('#prev-esbukti').innerHTML = '<div class="foto-thumb"><img src="data:' + f.mime + ';base64,' + f.data + '"></div>';
+    $('#prev-esbukti').dataset.foto = JSON.stringify(f);
   });
   $('#btnBatalSetoran').addEventListener('click', () => { location.hash = '#/kasbon/' + kasbonId; });
   $('#formSetoran').addEventListener('submit', async (e) => {
@@ -696,7 +723,7 @@ function formEditSetoran(kasbonId, setoran) {
         metode: $('input[name="es-metode"]:checked').value,
         catatan: $('#es-catatan').value.trim()
       };
-      if ($('#es-bukti').dataset.foto) body.bukti_transfer = JSON.parse($('#es-bukti').dataset.foto);
+      if ($('#prev-esbukti').dataset.foto) body.bukti_transfer = JSON.parse($('#prev-esbukti').dataset.foto);
       await api('/setoran/' + encodeURIComponent(setoran.id), { method: 'PUT', body: JSON.stringify(body) });
       toast('Setoran diperbarui.', 'sukses');
       location.hash = '#/kasbon/' + kasbonId;
@@ -824,22 +851,17 @@ function pasangFormBelanja() {
     if (h) { h.closest('.item-row').remove(); hitungEstimasi(); }
   });
   $('#formBelanja').addEventListener('input', hitungEstimasi);
-  $('#inputFoto').addEventListener('change', async () => {
-    const files = $('#inputFoto').files;
-    if (!files.length) return;
+  pasangTombolFoto('inputFoto', async (files) => {
     const wadah = $('#daftarFotoBaru');
     for (let i = 0; i < files.length; i++) {
-      try {
-        const f = await kompresFoto(files[i]);
-        const div = document.createElement('div');
-        div.className = 'foto-thumb';
-        div.dataset.foto = JSON.stringify(f);
-        div.innerHTML = '<img src="data:' + f.mime + ';base64,' + f.data + '"><button type="button" title="Hapus">&times;</button>';
-        div.querySelector('button').addEventListener('click', () => div.remove());
-        wadah.appendChild(div);
-      } catch (err) { toast(err.message, 'gagal'); }
+      const f = await kompresFoto(files[i]);
+      const div = document.createElement('div');
+      div.className = 'foto-thumb';
+      div.dataset.foto = JSON.stringify(f);
+      div.innerHTML = '<img src="data:' + f.mime + ';base64,' + f.data + '"><button type="button" title="Hapus">&times;</button>';
+      div.querySelector('button').addEventListener('click', () => div.remove());
+      wadah.appendChild(div);
     }
-    $('#inputFoto').value = '';
     hitungEstimasi();
   });
 }
@@ -917,9 +939,9 @@ async function layarBelanjaForm(params, query) {
         '<button type="button" class="btn btn-sekunder btn-kecil" id="btnTambahItem">+ Tambah Item</button></div>' +
       '<div class="field"><label>Biaya lain (opsional)</label><div id="daftarBiaya"></div>' +
         '<button type="button" class="btn btn-sekunder btn-kecil" id="btnTambahBiaya">+ Tambah Biaya</button></div>' +
-      '<div class="field"><label for="inputFoto">Foto nota <span style="color:#dc2626">* (bisa banyak)</span></label>' +
-        '<input type="file" id="inputFoto" accept="image/*" multiple capture="environment">' +
-        '<div class="bantuan">Bisa dari kamera atau galeri. Foto dikompres otomatis di HP sebelum dikirim.</div>' +
+      '<div class="field"><label>Foto nota <span style="color:#dc2626">* (bisa banyak)</span></label>' +
+        tombolFotoHTML('inputFoto', true) +
+        '<div class="bantuan">Ketuk 📷 untuk ambil foto baru, atau 🖼️ untuk pilih dari galeri. Foto dikompres otomatis di HP.</div>' +
         '<div class="foto-grid" id="daftarFotoBaru"></div><div class="foto-grid" id="daftarFotoLama" style="display:none"></div></div>' +
       '<div class="field"><label for="b-catatan">Catatan (opsional)</label><textarea id="b-catatan"></textarea></div>' +
       '<div class="kotak-info" id="estimasi">Estimasi total: <strong>Rp 0</strong></div>' +
@@ -1038,8 +1060,8 @@ async function layarBelanjaEdit(params) {
             '<div class="foto-thumb" data-foto-id="' + esc(f.id) + '"><img src="' + esc(f.url) + '"><button type="button" title="Tandai hapus">&times;</button></div>'
           ).join('') +
         '</div>' +
-        '<div class="field mt"><label for="inputFoto">Tambah foto baru</label>' +
-        '<input type="file" id="inputFoto" accept="image/*" multiple capture="environment">' +
+        '<div class="field mt"><label>Tambah foto baru</label>' +
+        tombolFotoHTML('inputFoto', true) +
         '<div class="foto-grid" id="daftarFotoBaru"></div></div></div>' +
       '<div class="field"><label for="b-catatan">Catatan (opsional)</label><textarea id="b-catatan">' + esc(b.catatan || '') + '</textarea></div>' +
       '<div class="kotak-info" id="estimasi"></div>' +
