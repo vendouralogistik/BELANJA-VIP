@@ -189,10 +189,16 @@ const RUTE = [
   { re: /^\/s\/([^/]+)$/, fn: layarSharePublik, publik: true }
 ];
 
+/* Nomor urut render: cegah race condition. Jika user pindah layar cepat,
+   render yang lebih lama (basi) tidak boleh menimpa DOM/nav milik render terbaru.
+   Tanpa ini, bar navigasi bawah bisa terjebak hilang dan user tidak bisa pindah menu. */
+let SEQ_RENDER = 0;
 async function render() {
+  const seq = ++SEQ_RENDER;
   const { path, query } = parseHash();
   const rute = RUTE.find((r) => r.re.test(path));
-  const tanpaNav = !rute || rute.publik;
+  const tanpaNav = !rute || !!rute.publik;
+  // Langsung cerminkan navigasi terbaru (urutan pemanggilan selalu kronologis).
   document.body.classList.toggle('tanpa-nav', tanpaNav);
   if (!rute) {
     location.hash = getToken() ? '#/' : '#/login';
@@ -202,17 +208,20 @@ async function render() {
     location.hash = '#/login';
     return;
   }
-  $$('#bottomnav a').forEach((a) => {
-    a.classList.toggle('aktif', rute.nav && a.dataset.nav === rute.nav);
-  });
   const m = path.match(rute.re);
   try {
     await rute.fn(m ? m.slice(1) : [], query);
   } catch (e) {
+    if (seq !== SEQ_RENDER) return; // basi: abaikan
     viewEl().innerHTML = '<div class="kosong"><span class="emoji">&#9888;&#65039;</span>' +
       '<p>' + esc(e.message) + '</p>' +
       '<button class="btn btn-sekunder btn-kecil" onclick="history.back()">Kembali</button></div>';
   }
+  if (seq !== SEQ_RENDER) return; // basi: jangan sentuh status navigasi
+  document.body.classList.toggle('tanpa-nav', tanpaNav);
+  $$('#bottomnav a').forEach((a) => {
+    a.classList.toggle('aktif', !!(rute.nav && a.dataset.nav === rute.nav));
+  });
   window.scrollTo(0, 0);
 }
 
