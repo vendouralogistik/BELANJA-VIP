@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Belanja VIP</title>
+<meta name="description" content="Catatan kasbon & LPJ belanja sparepart">
+<meta name="theme-color" content="#16a34a">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%92%B0%3C/text%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div id="app">
+  <header id="topbar">
+    <span class="topbar-title">&#128176; Belanja VIP</span>
+    <span class="topbar-user" id="topbarUser"></span>
+  </header>
+  <main id="view" aria-live="polite"></main>
+  <nav id="bottomnav" aria-label="Navigasi utama">
+    <a href="#/" data-nav="beranda"><span class="nav-ico">&#127968;</span><span>Beranda</span></a>
+    <a href="#/kasbon" data-nav="kasbon"><span class="nav-ico">&#128188;</span><span>Kasbon</span></a>
+    <a href="#/belanja" data-nav="belanja"><span class="nav-ico">&#129717;</span><span>Belanja</span></a>
+    <a href="#/rekap" data-nav="rekap"><span class="nav-ico">&#128202;</span><span>Rekap</span></a>
+    <a href="#/lainnya" data-nav="lainnya"><span class="nav-ico">&#9776;</span><span>Lainnya</span></a>
+  </nav>
+</div>
+<div id="toast" role="status" aria-live="assertive"></div>
+<script src="/app.js"></script>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('/sw.js').catch(function () { /* abaikan */ });
+  });
+}
+</script>
+</body>
+</html>
