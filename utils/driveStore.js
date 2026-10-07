@@ -1,6 +1,12 @@
-// utils/driveStore.js — upload foto ke Firebase Storage + bangun URL tampil.
-// (Awalnya Google Drive; dipindah karena Service Account tidak punya kuota
-//  penyimpanan Drive. Interface IDENTIK agar routes tidak berubah.)
+// utils/driveStore.js — upload foto ke Vercel Blob + URL tampil.
+// (Riwayat: Google Drive -> Firebase Storage -> Vercel Blob.
+//  Drive: Service Account tak punya kuota penyimpanan.
+//  Firebase Storage: wajib upgrade Blaze/berbayar.
+//  Vercel Blob: gratis di paket Hobby, tanpa kartu kredit, tanpa akun baru.)
+// Interface IDENTIK agar routes tidak berubah:
+//   upload(base64, mime, filename) -> file_id (URL publik Blob)
+//   url(fileId) -> URL tampil
+//   remove(fileId) -> hapus (best-effort)
 // TEST_MODE=1 -> fake (kembalikan id "test-file-<uuid>").
 const crypto = require('crypto');
 
@@ -8,53 +14,41 @@ const TEST_MODE = process.env.TEST_MODE === '1';
 
 function err503(msg) { const e = new Error(msg); e.status = 503; throw e; }
 
-let _bucket = null;
-function bucket() {
-  if (_bucket) return _bucket;
-  const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
-  const bucketName = process.env.FIREBASE_STORAGE_BUCKET;
-  if (!raw || !bucketName) err503('Penyimpanan foto belum dikonfigurasi: isi GOOGLE_SERVICE_ACCOUNT_JSON & FIREBASE_STORAGE_BUCKET di env.');
-  let sa;
-  try { sa = JSON.parse(raw); }
-  catch (e) { err503('GOOGLE_SERVICE_ACCOUNT_JSON bukan JSON yang valid.'); }
-  const admin = require('firebase-admin');
-  if (!admin.apps.length) {
-    admin.initializeApp({
-      credential: admin.credential.cert(sa),
-      storageBucket: bucketName,
-    });
-  }
-  _bucket = admin.storage().bucket(bucketName);
-  return _bucket;
+function rwToken() {
+  const t = process.env.BLOB_READ_WRITE_TOKEN;
+  if (!t) err503('Penyimpanan foto belum dikonfigurasi: isi BLOB_READ_WRITE_TOKEN di env.');
+  return t;
 }
 
-// Upload base64 (tanpa prefix) -> file_id (path di bucket).
+// Upload base64 (tanpa prefix) -> URL publik (disimpan sebagai file_id).
 async function upload(base64, mime, filename) {
   if (!base64) err503('Data foto kosong.');
   if (TEST_MODE) return 'test-file-' + crypto.randomUUID();
-  const b = bucket();
+  const { put } = require('@vercel/blob');
   const name = 'belanja-vip/' + (filename || ('foto-' + Date.now() + '.jpg'));
-  const file = b.file(name);
-  await file.save(Buffer.from(base64, 'base64'), {
+  const { url } = await put(name, Buffer.from(base64, 'base64'), {
+    access: 'public',
     contentType: mime || 'image/jpeg',
-    resumable: false,
-    metadata: { cacheControl: 'public, max-age=31536000' },
+    token: rwToken(),
   });
-  await file.makePublic();
-  return name;
+  return url;
 }
 
-// URL tampil untuk sebuah file_id.
+// URL tampil untuk sebuah file_id (di production file_id SUDAH berupa URL).
 function url(fileId) {
   if (!fileId) return null;
-  const bucketName = process.env.FIREBASE_STORAGE_BUCKET || '';
-  return `https://storage.googleapis.com/${bucketName}/${fileId}`;
+  if (/^https?:\/\//i.test(fileId)) return fileId;
+  if (TEST_MODE) return `https://test.public.blob.vercel-storage.com/${fileId}`;
+  return fileId;
 }
 
 // Hapus file (best-effort; gagal diabaikan agar tidak mengganggu alur utama).
 async function remove(fileId) {
   if (!fileId || TEST_MODE) return true;
-  try { await bucket().file(fileId).delete(); } catch (e) { /* abaikan */ }
+  try {
+    const { del } = require('@vercel/blob');
+    await del(fileId, { token: rwToken() });
+  } catch (e) { /* abaikan */ }
   return true;
 }
 

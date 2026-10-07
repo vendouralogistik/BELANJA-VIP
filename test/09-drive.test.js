@@ -1,15 +1,15 @@
 'use strict';
 /**
- * 9. Storage foto fake (TEST_MODE) — cakupan wajib:
+ * 9. Blob foto fake (TEST_MODE) — cakupan wajib:
  *  - upload foto mengembalikan file id
- *  - URL terbentuk benar: https://storage.googleapis.com/<BUCKET>/<FILE_ID>
+ *  - URL terbentuk benar: https://<STORE>.public.blob.vercel-storage.com/<FILE_ID>
  *  - berlaku untuk foto nota (belanja) maupun bukti transfer (kasbon/setoran)
  */
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 const { login, buatKasbon, tutupKasbon, foto, driveUrl } = require('./_helper');
 
-describe('Storage foto fake (TEST_MODE)', () => {
+describe('Blob foto fake (TEST_MODE)', () => {
   it('upload foto nota -> drive_file_id terisi + url terbentuk benar', async () => {
     const client = await login();
     const kasbon = await buatKasbon(client);
@@ -27,7 +27,7 @@ describe('Storage foto fake (TEST_MODE)', () => {
     assert.ok(typeof f.drive_file_id === 'string' && f.drive_file_id.length > 0,
       'drive_file_id harus string tak-kosong');
     assert.equal(f.url, driveUrl(f.drive_file_id),
-      'url harus https://storage.googleapis.com/<BUCKET>/<FILE_ID>');
+      'url harus https://<STORE>.public.blob.vercel-storage.com/<FILE_ID>');
   });
 
   it('beberapa foto -> tiap foto dapat file id UNIK', async () => {

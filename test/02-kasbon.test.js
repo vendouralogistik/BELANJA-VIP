@@ -52,7 +52,7 @@ describe('Kasbon', () => {
     assert.equal(
       kasbon.bukti_transfer_url,
       driveUrl(kasbon.bukti_transfer_drive_id),
-      'bukti_transfer_url harus berbentuk URL Firebase Storage'
+      'bukti_transfer_url harus berbentuk URL Vercel Blob'
     );
   });
 

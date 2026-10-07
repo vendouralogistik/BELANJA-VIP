@@ -23,7 +23,6 @@
 
 process.env.TEST_MODE = '1';
 // Bucket dummy agar URL foto terbentuk deterministik saat TEST_MODE=1.
-process.env.FIREBASE_STORAGE_BUCKET = process.env.FIREBASE_STORAGE_BUCKET || 'test-bucket';
 
 const assert = require('node:assert/strict');
 const path = require('node:path');
@@ -46,8 +45,7 @@ function foto(mime = 'image/jpeg') {
 
 /** Bentuk URL tampil foto sesuai CONTRACT.md (Firebase Storage) */
 function driveUrl(fileId) {
-  const bucket = process.env.FIREBASE_STORAGE_BUCKET || 'test-bucket';
-  return `https://storage.googleapis.com/${bucket}/${fileId}`;
+  return `https://test.public.blob.vercel-storage.com/${fileId}`;
 }
 
 function freshRequest() {

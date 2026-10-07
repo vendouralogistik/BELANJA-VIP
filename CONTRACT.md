@@ -9,7 +9,7 @@ bentuk request/response agar backend, frontend, dan test selaras.
 - Auth: header `Authorization: Bearer <JWT>`. Wajib di semua `/api/*` KECUALI:
   `POST /api/login`, `POST /api/logout` (stateless no-op), `GET /api/s/:token`, `POST /api/s/:token/setujui`, `GET /api/version`, `GET /api/wake`.
 - Foto dari client: `{ data: "<base64 tanpa prefix>", mime: "image/jpeg" }`.
-- URL tampil foto: `https://storage.googleapis.com/<BUCKET>/<FILE_ID>` (dibangun server → field `*_url`).
+- URL tampil foto: `https://<STORE>.public.blob.vercel-storage.com/<FILE_ID>` (dibangun server → field `*_url`).
 
 ## Auth
 - `POST /api/login` `{username, password}` → `200 { token, user:{id, username, nama} }` / `401 {error}`
