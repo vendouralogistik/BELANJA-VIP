@@ -145,4 +145,42 @@ describe('Kasbon', () => {
     const res = await client.delete(`/api/kasbon/${kasbon.id}`);
     assert.equal(res.status, 409);
   });
+
+  it('ID klien dipakai + retry idempoten (tidak duplikat)', async () => {
+    const client = await login();
+    const crypto = require('node:crypto');
+    const cid = crypto.randomUUID();
+    const payload = {
+      id: cid,
+      tanggal: '2026-10-07',
+      jumlah: 250000,
+      keperluan: 'Uji idempoten',
+      pemberi: 'Bendahara',
+      metode: 'tunai',
+    };
+    const r1 = await client.post('/api/kasbon').send(payload);
+    assert.equal(r1.status, 201);
+    assert.equal(r1.body.kasbon.id, cid, 'server harus memakai ID klien');
+    const r2 = await client.post('/api/kasbon').send(payload);
+    assert.equal(r2.body.kasbon.id, cid, 'retry harus mengembalikan data yang sama');
+    const semua = await client.get('/api/kasbon');
+    const cocok = (semua.body.kasbon || []).filter((k) => k.id === cid);
+    assert.equal(cocok.length, 1, 'tidak boleh ada duplikat');
+    await client.delete(`/api/kasbon/${cid}`);
+  });
+
+  it('ID klien tidak valid -> server generate sendiri', async () => {
+    const client = await login();
+    const r = await client.post('/api/kasbon').send({
+      id: 'bukan-uuid',
+      tanggal: '2026-10-07',
+      jumlah: 250000,
+      keperluan: 'Uji id acak',
+      pemberi: 'Bendahara',
+      metode: 'tunai',
+    });
+    assert.equal(r.status, 201);
+    assert.notEqual(r.body.kasbon.id, 'bukan-uuid');
+    await client.delete(`/api/kasbon/${r.body.kasbon.id}`);
+  });
 });
